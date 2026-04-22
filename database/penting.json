@@ -6,5 +6,7 @@
     "type": "hour",
     "messages": [],
     "lastIndex": 0
-  }
+  },
+  "lastStatusKey": null,
+  "lastStatusTime": ""
 }

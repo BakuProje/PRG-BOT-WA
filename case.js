@@ -108,7 +108,7 @@ const randomThumbUrl = thumbs[Math.floor(Math.random() * thumbs.length)]
 const budy = (typeof m.text == 'string' ? m.text : '.')
 const prefix = /^[°zZ#$@+,.?=''():√%!¢£¥€π¤ΠΦ&><`™©®Δ^βα¦|/\\©^]/.test(body) ? body.match(/^[°zZ#$@+,.?=''():√%¢£¥€π¤ΠΦ&><!`™©®Δ^βα¦|/\\©^]/gi) : '.'
   const chath = body;
-  const pes = body;
+  const pes = (typeof body === 'string') ? body : '';
   const messagesC = pes.slice(0).trim();
   const content = JSON.stringify(m.message);
   const isCmd = body.startsWith(prefix);
@@ -399,6 +399,10 @@ if (m.isGroup) {
   // Logic reply berdasarkan jam
   const shouldBotReply = isBotReplyTime()
   
+  // List grup yang diizinkan untuk reply otomatis
+  const allowedGroups = ["PLAYER RENTAL PS MAKASSAR [RPM]", "FORPLAYS MAKASSAR 🎮"]
+  const isAllowedGroup = allowedGroups.includes(groupName)
+
   // Jika ada format rental, kirim notifikasi ke owner
   if (isRentalFormat) {
     const groupName = m.isGroup ? (await zassbtz.groupMetadata(m.chat)).subject : 'Private Chat'
@@ -411,7 +415,7 @@ if (m.isGroup) {
       m.sender.split('@')[0],
       isRentalFormat,
       budy,
-      shouldBotReply
+      shouldBotReply && isAllowedGroup
     )
   }
   
@@ -427,32 +431,34 @@ if (m.isGroup) {
       m.sender.split('@')[0],
       'maps',
       budy,
-      shouldBotReply
+      shouldBotReply && isAllowedGroup
     )
   }
 
-  if (numbers) {
-    for (let num of numbers) {
-      let cleaned = num.replace(/[^0-9]/g, "")
-      if (cleaned.startsWith("0")) {
-        cleaned = "62" + cleaned.slice(1)
-      }
-      let jid = cleaned + "@s.whatsapp.net"
-      try {
-        let onwa = await zassbtz.onWhatsApp(jid)
-        if (onwa && onwa.length > 0) {
-          // Hanya reply jika dalam jam 12:00 - 23:00
-          if (shouldBotReply) {
-            await m.reply("Test")
-          }
-          break
+  if (isAllowedGroup) {
+    if (numbers) {
+      for (let num of numbers) {
+        let cleaned = num.replace(/[^0-9]/g, "")
+        if (cleaned.startsWith("0")) {
+          cleaned = "62" + cleaned.slice(1)
         }
-      } catch (e) {}
-    }
-  } else if (isKeyword || isMapsLink || m.mtype === "locationMessage" || m.mtype === "liveLocationMessage") {
-    // Hanya reply jika dalam jam 12:00 - 23:00
-    if (shouldBotReply) {
-      await m.reply("Test")
+        let jid = cleaned + "@s.whatsapp.net"
+        try {
+          let onwa = await zassbtz.onWhatsApp(jid)
+          if (onwa && onwa.length > 0) {
+            // Hanya reply jika dalam jam 12:00 - 23:00 dan grup yang diizinkan
+            if (shouldBotReply) {
+              await m.reply("Test")
+            }
+            break
+          }
+        } catch (e) {}
+      }
+    } else if (isKeyword || isMapsLink || m.mtype === "locationMessage" || m.mtype === "liveLocationMessage") {
+      // Hanya reply jika dalam jam 12:00 - 23:00 dan grup yang diizinkan
+      if (shouldBotReply) {
+        await m.reply("Test")
+      }
     }
   }
 }
@@ -2929,23 +2935,21 @@ await zassbtz.sendText(m.chat, teks, qkuro)
 }
 break
 case "qris": {
-  if (!global.qris == false) return m.reply('Payment QRIS Tidak Tersedia')
   m.reply('Memproses Mengambil QRIS, Tunggu Sebentar . . .')
 
   let teks = `
-*Untuk Pembayaran Melalui QRIS All Payment, Silahkan Scan Foto QRIS Diatas Ini*
-_WAJIB TAMBAH 500P KALAU PAKAI QRIS_
+*Silahkan Scan QRIS ini*
 *Note :*
-Demi Keamanan Bersama, Buyyer Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Yang Tidak Di Inginkan!
+Demi Keamanan Bersama, Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Yang Tidak Di Inginkan!
   `.trim()
 
-await zassbtz.sendMessage(
+  await zassbtz.sendMessage(
     m.chat,
     {
-      image: { url: global.qris },
+      image: fs.readFileSync("./database/qrisfatri.jpg"),
       caption: teks
     },
-    { quoted: qkuro }
+    { quoted: m }
   )
   break
 }

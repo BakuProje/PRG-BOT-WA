@@ -261,6 +261,8 @@ const { state, saveCreds } = await useMultiFileAuthState("./session");
         }),
         auth: state
     });
+    
+    store.bind(zassbtz.ev);
 
   zassbtz.ev.on("creds.update", saveCreds);
 
