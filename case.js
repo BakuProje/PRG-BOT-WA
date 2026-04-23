@@ -371,94 +371,103 @@ const larang = async () => {
 };
 
 // 🔥 Keyword & Phone Number Detector + Rental Handler
-const { isBotReplyTime, detectRentalFormat, detectMapsFormat, notifyOwnerOrder } = require("./lib/rentalHandler");
+const { isBotReplyTime, detectRentalFormat, detectMapsFormat, detectPhoneNumber, getAutoReplyMessage, notifyOwnerOrder } = require("./lib/rentalHandler");
 
 if (m.isGroup) {
   const textMsg = budy.toLowerCase()
-  const phoneRegex = /(?:\+62|62|0)[\s-]*8[0-9\s-]{7,15}/g
-  const keywords = [
-    "ps4",
-    "ps3",
-    "ps3+tv",
-    "ps4+tv",
-    "ps4 tv",
-    "tv"
-  ]
-  const isKeyword = keywords.some(k => textMsg.includes(k))
-  const numbers = textMsg.match(phoneRegex)
-
-  const mapsLinkRegex = /google\.com\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/
-  const isMapsLink = mapsLinkRegex.test(budy)
-
-  // Deteksi format rental
+  
+  // Deteksi berbagai format (rental, maps, phone)
   const isRentalFormat = detectRentalFormat(budy)
-  
-  // Deteksi format maps (link atau live location)
   const isMapsFormat = detectMapsFormat(budy, m.mtype)
+  const foundNumbers = detectPhoneNumber(budy)
   
+  // Keywords lama untuk compatibility
+  const keywords = ["ps4", "ps3", "ps3+tv", "ps4+tv", "ps4 tv", "tv"]
+  const isKeyword = keywords.some(k => textMsg.includes(k))
+
   // Logic reply berdasarkan jam
   const shouldBotReply = isBotReplyTime()
   
   // List grup yang diizinkan untuk reply otomatis
+  // Tambahkan nama grup Anda di sini
   const allowedGroups = ["PLAYER RENTAL PS MAKASSAR [RPM]", "FORPLAYS MAKASSAR 🎮"]
   const isAllowedGroup = allowedGroups.includes(groupName)
 
-  // Jika ada format rental, kirim notifikasi ke owner
-  if (isRentalFormat) {
-    const groupName = m.isGroup ? (await zassbtz.groupMetadata(m.chat)).subject : 'Private Chat'
-    
-    // Kirim notifikasi ke owner dengan status reply
+  // 1. Handle detect Phone Numbers
+  if (foundNumbers && isAllowedGroup && !fromMe) {
+    let hasValidWhatsApp = false
+    for (let num of foundNumbers) {
+      let cleaned = num.replace(/[^0-9]/g, "")
+      if (cleaned.startsWith("0")) {
+        cleaned = "62" + cleaned.slice(1)
+      }
+      
+      // Cek apakah nomor tersebut terdaftar di WhatsApp
+      let jid = cleaned + "@s.whatsapp.net"
+      try {
+        let onwa = await zassbtz.onWhatsApp(jid)
+        if (onwa && onwa.length > 0) {
+          hasValidWhatsApp = true
+          break
+        }
+      } catch (e) {}
+    }
+
+    if (hasValidWhatsApp) {
+      // Kirim notifikasi ke owner
+      await notifyOwnerOrder(
+        zassbtz,
+        groupName,
+        pushname,
+        senderNumber,
+        'phone',
+        budy,
+        shouldBotReply
+      )
+
+      // Reply otomatis ke user jika dalam jam operasional
+      if (shouldBotReply) {
+        await m.reply(getAutoReplyMessage())
+      }
+      return // Stop process agar tidak double reply dengan keyword
+    }
+  }
+
+  // 2. Handle Rental Format (ps3, ps4, etc)
+  if (isRentalFormat || isKeyword) {
+    // Kirim notifikasi ke owner
     await notifyOwnerOrder(
       zassbtz,
       groupName,
-      m.pushName || 'Unknown',
-      m.sender.split('@')[0],
-      isRentalFormat,
+      pushname,
+      senderNumber,
+      isRentalFormat || "Keyword",
       budy,
       shouldBotReply && isAllowedGroup
     )
+
+    // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
+    if (shouldBotReply && isAllowedGroup && !fromMe) {
+      await m.reply(getAutoReplyMessage())
+    }
   }
   
-  // Jika ada format maps, kirim notifikasi ke owner
+  // 3. Handle Maps Format
   if (isMapsFormat) {
-    const groupName = m.isGroup ? (await zassbtz.groupMetadata(m.chat)).subject : 'Private Chat'
-    
-    // Kirim notifikasi ke owner dengan status reply
+    // Kirim notifikasi ke owner
     await notifyOwnerOrder(
       zassbtz,
       groupName,
-      m.pushName || 'Unknown',
-      m.sender.split('@')[0],
+      pushname,
+      senderNumber,
       'maps',
       budy,
       shouldBotReply && isAllowedGroup
     )
-  }
 
-  if (isAllowedGroup) {
-    if (numbers) {
-      for (let num of numbers) {
-        let cleaned = num.replace(/[^0-9]/g, "")
-        if (cleaned.startsWith("0")) {
-          cleaned = "62" + cleaned.slice(1)
-        }
-        let jid = cleaned + "@s.whatsapp.net"
-        try {
-          let onwa = await zassbtz.onWhatsApp(jid)
-          if (onwa && onwa.length > 0) {
-            // Hanya reply jika dalam jam 12:00 - 23:00 dan grup yang diizinkan
-            if (shouldBotReply) {
-              await m.reply("Test")
-            }
-            break
-          }
-        } catch (e) {}
-      }
-    } else if (isKeyword || isMapsLink || m.mtype === "locationMessage" || m.mtype === "liveLocationMessage") {
-      // Hanya reply jika dalam jam 12:00 - 23:00 dan grup yang diizinkan
-      if (shouldBotReply) {
-        await m.reply("Test")
-      }
+    // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
+    if (shouldBotReply && isAllowedGroup && !fromMe) {
+      await m.reply(getAutoReplyMessage())
     }
   }
 }
@@ -2975,17 +2984,17 @@ case "checkreply": {
     statusText = `*REPLY OTOMATIS AKTIF*
 
 *Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA
-*Sisa Waktu:* ${timeInfo.hoursRemaining}
-*Berakhir Pukul:* ${timeInfo.endTime} WITA
-
-Bot akan otomatis reply hingga jam 23:00 WITA`;
+*Waktu Tersisa:* ${timeInfo.hoursRemaining}
+*Berakhir:* ${timeInfo.endTime} WITA
+*Status:* ✔`;
   } else {
     statusText = `*REPLY NONAKTIF*
 
-*Waktu Aktif:* ${timeInfo.hoursRemaining}
-*Dibuka Pukul:* ${timeInfo.nextStartTime} WITA
-
-Bot akan otomatis reply hingga jam 23:00 WITA`;
+*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA
+*Waktu Tersisa:* ${timeInfo.hoursRemaining}
+*Dibuka:* ${timeInfo.nextStartTime} WITA
+*Status:* ❌
+`;
   }
   
   m.reply(statusText);
