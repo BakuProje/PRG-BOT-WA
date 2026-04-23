@@ -2,12 +2,12 @@ const fs = require('fs')
 const chalk = require('chalk')
 
 //——————————[ Config Owner ]——————————//
-global.ownernumber = '' // Ganti nomer mu
+global.ownernumber = '6282349918631' // Ganti nomer mu
 global.ownername = 'Kuzuroken'
 
 //——————————[ Config Bot ]——————————//
 global.namabot = "PRG"
-global.nomorbot = '' // Ganti no botmu
+global.nomorbot = '6282349918631' // Ganti no botmu
 global.pair = "PRGGAMER"
 global.version = '1.0'
 global.autojoingc = false

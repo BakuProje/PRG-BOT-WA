@@ -427,7 +427,7 @@ if (m.isGroup) {
 
       // Reply otomatis ke user jika dalam jam operasional
       if (shouldBotReply) {
-        await m.reply(getAutoReplyMessage())
+        await m.reply("Test")
       }
       return // Stop process agar tidak double reply dengan keyword
     }
@@ -448,7 +448,7 @@ if (m.isGroup) {
 
     // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
     if (shouldBotReply && isAllowedGroup && !fromMe) {
-      await m.reply(getAutoReplyMessage())
+      await m.reply("Test")
     }
   }
   
@@ -467,7 +467,7 @@ if (m.isGroup) {
 
     // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
     if (shouldBotReply && isAllowedGroup && !fromMe) {
-      await m.reply(getAutoReplyMessage())
+      await m.reply("Test")
     }
   }
 }
