@@ -32,6 +32,16 @@ const pentingFile = path.join(dbPath, "penting.json");
 const usersJson = path.join(dbPath, "user.json");
 const contactsFile = path.join(dbPath, "contacts.vcf");
 
+// Web Server for Heroku
+const http = require('http');
+const port = process.env.PORT || 8000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot is running\n');
+}).listen(port, () => {
+  console.log(`Server is listening on port ${port}`);
+});
+
 if (!fs.existsSync(dbPath)) {
   fs.mkdirSync(dbPath);
   console.log(chalk.greenBright("[Database] Folder dibuat otomatis."));
@@ -209,19 +219,34 @@ async function startsesi() {
     : "";
 
   if (!global.ownernumber || global.ownernumber.trim() === "") {
-console.log(chalk.yellow("Daftarkan nomor owner (ex: 628xxxxxx): "));
-global.ownernumber = await ask("> ");
-}
+    if (process.env.PORT) {
+      console.log(chalk.red("WARNING: global.ownernumber is empty. Please fill it in settings.js"));
+      global.ownernumber = "628xxx"; // Dummy or leave empty
+    } else {
+      console.log(chalk.yellow("Daftarkan nomor owner (ex: 628xxxxxx): "));
+      global.ownernumber = await ask("> ");
+    }
+  }
 
-if (!global.ownername || global.ownername.trim() === "") {
-console.log(chalk.yellow("Siapa nama mu?: "));
-global.ownername = await ask("> ");
-}
+  if (!global.ownername || global.ownername.trim() === "") {
+    if (process.env.PORT) {
+      console.log(chalk.red("WARNING: global.ownername is empty. Please fill it in settings.js"));
+      global.ownername = "Owner";
+    } else {
+      console.log(chalk.yellow("Siapa nama mu?: "));
+      global.ownername = await ask("> ");
+    }
+  }
 
-if (!global.nomorbot || global.nomorbot.trim() === "") {
-console.log(chalk.yellow("Masukkan nomor bot untuk pairing (ex: 628xxxxxx): "));
-global.nomorbot = await ask("> ");
-}
+  if (!global.nomorbot || global.nomorbot.trim() === "") {
+    if (process.env.PORT) {
+      console.log(chalk.red("WARNING: global.nomorbot is empty. Please fill it in settings.js"));
+      global.nomorbot = "628xxx";
+    } else {
+      console.log(chalk.yellow("Masukkan nomor bot untuk pairing (ex: 628xxxxxx): "));
+      global.nomorbot = await ask("> ");
+    }
+  }
 
   try {
     settingsContent = settingsContent
@@ -268,7 +293,7 @@ const { state, saveCreds } = await useMultiFileAuthState("./session");
 
   if (!zassbtz.authState.creds.registered) {
     await new Promise((r) => setTimeout(r, 3000));
-    const code = await zassbtz.requestPairingCode(global.nomorbot, pair);
+    const code = await zassbtz.requestPairingCode(global.nomorbot, global.pair);
     console.log(chalk.black.bgGreen("Ini kode pairing kamu:"), chalk.white.bold(code));
   }
 
