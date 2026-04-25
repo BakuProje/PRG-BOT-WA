@@ -8,5 +8,9 @@
     "lastIndex": 0
   },
   "lastStatusKey": null,
-  "lastStatusTime": ""
+  "lastStatusTime": "",
+  "autoReply": false,
+  "manualStatus": "OFF",
+  "manualExpiry": 1777143414961,
+  "lastDeactivationDay": "2026-04-26"
 }

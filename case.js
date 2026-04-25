@@ -317,37 +317,9 @@ zassbtz.sendMessage(from, { text : teks }, { quoted : m })
 }
 
 const example = async (teks) => {
-  await zassbtz.sendMessage(m.chat, {
-    react: { text: '✖️', key: m.key }
-  });
-
-  const commander = `• *Example:* ${prefix+command} ${teks}`;
-
-  return zassbtz.sendMessage(m.chat, {
-    text: commander,
-    contextInfo: {
-      isForwarded: true,
-      mentionedJid: [m.sender],
-      forwardedNewsletterMessageInfo: {
-        newsletterJid: idSaluran,
-        newsletterName: nameSaluran,
-      },
-      externalAdReply: {
-        title: `Dame dayo !!!!`,
-        body: `Runtime : ${runtime(process.uptime())}`,
-        thumbnailUrl: global.thumbxm,
-        sourceUrl: '',
-        mediaType: 1,
-        renderLargerThumbnail: false
-      }
-    }
-  }, { quoted: m });
 };
 
 const larang = async () => {
-  await zassbtz.sendMessage(m.chat, {
-    react: { text: '✖️', key: m.key }
-  });
 
   return zassbtz.sendMessage(m.chat, {
     text: mess.creator,
@@ -385,91 +357,128 @@ if (m.isGroup) {
   const keywords = ["ps4", "ps3", "ps3+tv", "ps4+tv", "ps4 tv", "tv"]
   const isKeyword = keywords.some(k => textMsg.includes(k))
 
-  // Logic reply berdasarkan jam
-  const shouldBotReply = isBotReplyTime()
+  // Logic reply berdasarkan status & jadwal (Advanced)
+  const nowTime = Date.now()
+  const currentTimeWITA = moment().tz('Asia/Makassar')
+  const isScheduledOn = isBotReplyTime() 
+  
+  let shouldBotReply = false
+  if (penting.manualStatus === 'ON') {
+    // Dipaksa ON manual
+    if (penting.manualExpiry && nowTime > penting.manualExpiry) {
+      penting.manualStatus = null
+      penting.manualExpiry = null
+      savePenting()
+      shouldBotReply = isScheduledOn
+    } else {
+      shouldBotReply = true
+    }
+  } else if (penting.manualStatus === 'OFF') {
+    // Dipaksa OFF manual
+    const todayStr = currentTimeWITA.format('YYYY-MM-DD')
+    if (todayStr !== penting.lastDeactivationDay && isScheduledOn) {
+      penting.manualStatus = null
+      savePenting()
+      shouldBotReply = true
+    } else {
+      shouldBotReply = false
+    }
+  } else {
+    // Mode AUTO (mengikuti jadwal)
+    shouldBotReply = isScheduledOn
+  }
   
   // List grup yang diizinkan untuk reply otomatis
   // Tambahkan nama grup Anda di sini
   const allowedGroups = ["PLAYER RENTAL PS MAKASSAR [RPM]", "FORPLAYS MAKASSAR 🎮"]
   const isAllowedGroup = allowedGroups.includes(groupName)
 
-  // 1. Handle detect Phone Numbers
-  if (foundNumbers && isAllowedGroup && !fromMe) {
-    let hasValidWhatsApp = false
-    for (let num of foundNumbers) {
-      let cleaned = num.replace(/[^0-9]/g, "")
-      if (cleaned.startsWith("0")) {
-        cleaned = "62" + cleaned.slice(1)
-      }
-      
-      // Cek apakah nomor tersebut terdaftar di WhatsApp
-      let jid = cleaned + "@s.whatsapp.net"
-      try {
-        let onwa = await zassbtz.onWhatsApp(jid)
-        if (onwa && onwa.length > 0) {
-          hasValidWhatsApp = true
-          break
+    // 1. Handle detect Phone Numbers
+    if (foundNumbers && isAllowedGroup && !fromMe) {
+      let hasValidWhatsApp = false
+      for (let num of foundNumbers) {
+        let cleaned = num.replace(/[^0-9]/g, "")
+        if (cleaned.startsWith("0")) {
+          cleaned = "62" + cleaned.slice(1)
         }
-      } catch (e) {}
-    }
-
-    if (hasValidWhatsApp) {
-      // Kirim notifikasi ke owner
-      await notifyOwnerOrder(
-        zassbtz,
-        groupName,
-        pushname,
-        senderNumber,
-        'phone',
-        budy,
-        shouldBotReply
-      )
-
-      // Reply otomatis ke user jika dalam jam operasional
-      if (shouldBotReply) {
-        await m.reply("Test")
+        
+        // Cek apakah nomor tersebut terdaftar di WhatsApp
+        let jid = cleaned + "@s.whatsapp.net"
+        try {
+          let onwa = await zassbtz.onWhatsApp(jid)
+          if (onwa && onwa.length > 0) {
+            hasValidWhatsApp = true
+            break
+          }
+        } catch (e) {}
       }
-      return // Stop process agar tidak double reply dengan keyword
-    }
-  }
-
-  // 2. Handle Rental Format (ps3, ps4, etc)
-  if (isRentalFormat || isKeyword) {
-    // Kirim notifikasi ke owner
-    await notifyOwnerOrder(
-      zassbtz,
-      groupName,
-      pushname,
-      senderNumber,
-      isRentalFormat || "Keyword",
-      budy,
-      shouldBotReply && isAllowedGroup
-    )
-
-    // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
-    if (shouldBotReply && isAllowedGroup && !fromMe) {
-      await m.reply("Test")
-    }
-  }
   
-  // 3. Handle Maps Format
-  if (isMapsFormat) {
-    // Kirim notifikasi ke owner
-    await notifyOwnerOrder(
-      zassbtz,
-      groupName,
-      pushname,
-      senderNumber,
-      'maps',
-      budy,
-      shouldBotReply && isAllowedGroup
-    )
-
-    // Reply otomatis ke user jika dalam jam operasional dan group diizinkan
-    if (shouldBotReply && isAllowedGroup && !fromMe) {
-      await m.reply("Test")
+      if (hasValidWhatsApp) {
+        let botReplied = false
+        if (shouldBotReply) {
+          await m.reply("Tes")
+          botReplied = true
+        }
+  
+        // Kirim notifikasi ke owner hanya jika bot TIDAK melakukan reply otomatis
+        if (!botReplied) {
+          await notifyOwnerOrder(
+            zassbtz,
+            groupName,
+            pushname,
+            senderNumber,
+            'phone',
+            budy,
+            botReplied
+          )
+        }
+        return
+      }
     }
-  }
+  
+    // 2. Handle Rental Format (ps3, ps4, etc)
+    if (isRentalFormat || isKeyword) {
+      let botReplied = false
+      if (shouldBotReply && isAllowedGroup && !fromMe) {
+        await m.reply("Tes")
+        botReplied = true
+      }
+  
+      // Kirim notifikasi ke owner hanya jika bot TIDAK melakukan reply otomatis
+      if (!botReplied) {
+        await notifyOwnerOrder(
+          zassbtz,
+          groupName,
+          pushname,
+          senderNumber,
+          isRentalFormat || "Keyword",
+          budy,
+          botReplied
+        )
+      }
+    }
+    
+    // 3. Handle Maps Format
+    if (isMapsFormat) {
+      let botReplied = false
+      if (shouldBotReply && isAllowedGroup && !fromMe) {
+        await m.reply("Tes")
+        botReplied = true
+      }
+  
+      // Kirim notifikasi ke owner hanya jika bot TIDAK melakukan reply otomatis
+      if (!botReplied) {
+        await notifyOwnerOrder(
+          zassbtz,
+          groupName,
+          pushname,
+          senderNumber,
+          'maps',
+          budy,
+          botReplied
+        )
+      }
+    }
 }
 
 //——————————[ Message Log ]——————————//
@@ -2768,7 +2777,7 @@ case "autojoingc": {
 }
 break
 
-case "setting": case "settingbot": case "option": case "statusbot": {
+case "setting": case "settingbot": case "option": case "statusbot": { 
 if (!isCreator) return larang()
 var teks = `
 *List Status Setting Bot :*
@@ -2781,6 +2790,184 @@ var teks = `
 *Contoh Penggunaan :*
 Ketik *.autoread* on/off`
 m.reply(teks)
+}
+break
+
+case "prgrental": {
+  if (!isCreator && m.sender !== "6281527641306@s.whatsapp.net") return larang()
+  const { isBotReplyTime, getReplyTimeRemaining } = require("./lib/rentalHandler")
+  
+  const now = Date.now()
+  const isScheduledOn = isBotReplyTime()
+  
+  let statusStr = ""
+  let kondisiStr = ""
+  
+  if (penting.manualStatus === 'ON') {
+    statusStr = "ONLINE (Manual) 🟢"
+    if (penting.manualExpiry && now > penting.manualExpiry) {
+       kondisiStr = "Masa Berlalu Habis"
+    } else {
+       kondisiStr = "Paksa Aktif (3 Jam)"
+    }
+  } else if (penting.manualStatus === 'OFF') {
+    statusStr = "OFFLINE (Manual) 🔴"
+    kondisiStr = "Nonaktif Sampai Jam 10:00"
+  } else {
+    statusStr = isScheduledOn ? "ONLINE (Auto) 🟢" : "OFFLINE (Auto)🔴"
+    kondisiStr = isScheduledOn ? "Sesuai Jadwal" : "Diluar Jadwal"
+  }
+  
+  let teks = `*ADMIN CONTROL PANEL* ⚙️\n\n`
+  teks += `*Status:* ${statusStr}\n`
+  teks += `*Kondisi:* ${kondisiStr}\n`
+  
+  const timeInfo = getReplyTimeRemaining()
+  if (penting.manualStatus === 'OFF' || !isScheduledOn) {
+    teks += `*Aktif Kembali:* ${timeInfo.nextStartTime || "10:00:00"} WITA\n`
+    teks += `*Sisa Waktu:* ${timeInfo.hoursRemaining}\n`
+  }
+
+  teks += `\nSilakan pilih opsi di bawah untuk mengelola sistem balasan otomatis.`
+
+  const listnye = {
+    title: "Pilih Pengaturan",
+    sections: [
+      {
+        title: "Kontrol Reply Otomatis",
+        rows: [
+          {
+            title: "Aktifkan Reply 🟢",
+            id: "autoreply_on",
+            description: "Menyalakan fitur auto reply bot"
+          },
+          {
+            title: "Nonaktifkan Reply 🔴",
+            id: "autoreply_off",
+            description: "Mematikan fitur auto reply bot"
+          }
+        ]
+      }
+    ]
+  }
+
+  let msg = generateWAMessageFromContent(m.chat, {
+    viewOnceMessage: {
+      message: {
+        interactiveMessage: proto.Message.InteractiveMessage.create({
+          body: proto.Message.InteractiveMessage.Body.create({ text: teks }),
+          footer: proto.Message.InteractiveMessage.Footer.create({ text: `${global.namabot} Management System` }),
+          header: proto.Message.InteractiveMessage.Header.create({
+            title: "",
+            hasMediaAttachment: true,
+            ...(await prepareWAMessageMedia({ image: { url: global.img } }, { upload: zassbtz.waUploadToServer }))
+          }),
+          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+            buttons: [
+              {
+                name: "single_select",
+                buttonParamsJson: JSON.stringify(listnye)
+              }
+            ]
+          }),
+          contextInfo: {
+            mentionedJid: [m.sender],
+            forwardingScore: 999,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+              newsletterJid: global.idSaluran,
+              newsletterName: global.nameSaluran
+            }
+          }
+        })
+      }
+    }
+  }, { quoted: m })
+
+  await zassbtz.relayMessage(msg.key.remoteJid, msg.message, { messageId: msg.key.id })
+}
+break
+
+case "autoreply_on": {
+  if (!isCreator && m.sender !== "6281527641306@s.whatsapp.net") return larang()
+  const { isBotReplyTime } = require("./lib/rentalHandler")
+  
+  const isScheduledOn = isBotReplyTime()
+  
+  if (isScheduledOn) {
+    penting.manualStatus = null
+    penting.manualExpiry = null
+  } else {
+    penting.manualStatus = 'ON'
+    penting.manualExpiry = Date.now() + (3 * 60 * 60 * 1000)
+  }
+  
+  penting.autoReply = true
+  savePenting()
+  
+  let teks = `*REPLY AKTIF* ✅\n\n`
+  teks += `Fitur *Reply Otomatis* kini telah berhasil *DIAKTIFKAN*.\n`
+  if (!isScheduledOn) {
+    teks += `_Mode: Manual (Aktif selama 3 jam di luar jadwal)_\n`
+  }
+  teks += `\n_Sistem Management PRG_`
+
+  zassbtz.sendMessage(m.chat, {
+    image: { url: global.img },
+    caption: teks
+  }, { quoted: m })
+}
+break
+
+case "autoreply_off": {
+  if (!isCreator && m.sender !== "6281527641306@s.whatsapp.net") return larang()
+  const { getReplyTimeRemaining } = require("./lib/rentalHandler")
+  
+  penting.manualStatus = 'OFF'
+  penting.lastDeactivationDay = moment().tz('Asia/Makassar').format('YYYY-MM-DD')
+  penting.autoReply = false
+  savePenting()
+  
+  const timeInfo = getReplyTimeRemaining()
+  let teks = `*REPLY NONAKTIF* ❌\n\n`
+  teks += `Fitur *Reply Otomatis* kini telah berhasil *DINONAKTIFKAN*.\n`
+  teks += `Bot akan otomatis aktif kembali pada jam 10:00 pagi.\n`
+  teks += `Sisa waktu: ${timeInfo.hoursRemaining}\n\n`
+  teks += `_Sistem Management PRG_`
+
+  zassbtz.sendMessage(m.chat, {
+    image: { url: global.img },
+    caption: teks
+  }, { quoted: m })
+}
+break
+
+case "ps4": {
+  if (text.toLowerCase() === "online game") {
+    await zassbtz.sendMessage(m.chat, { 
+      video: { url: "./database/PS 4 ONLINE.mp4" }, 
+      caption: "🎮 *PS4 ONLINE GAME*" 
+    }, { quoted: m })
+  } else if (text.toLowerCase() === "offline game") {
+    await zassbtz.sendMessage(m.chat, { 
+      video: { url: "./database/PS 4 OFFLINE.mp4" }, 
+      caption: "🎮 *PS4 OFFLINE GAME*" 
+    }, { quoted: m })
+  } else {
+    return example("online game / offline game")
+  }
+}
+break
+
+case "ps3": {
+  if (text.toLowerCase() === "game") {
+    await zassbtz.sendMessage(m.chat, { 
+      video: { url: "./database/PS 3.mp4" }, 
+      caption: "🎮 *PS3 GAME*" 
+    }, { quoted: m })
+  } else {
+    return example("game")
+  }
 }
 break
 
@@ -2899,53 +3086,9 @@ function pickRandom(list) {
 ┃• ukuran : ${pickRandom(['1cm','2cm','3cm','4cm','5cm','20cm','45cm','50cm','90meter','150meter','5km','gak normal'])}
 ╰═┅═━––––––๑`)
 break
-case "ambilq": {
-let jsonData = JSON.stringify({ [m.quoted.mtype]: m.quoted }, null, 2)
-m.reply(jsonData)
-}
-break
-case "dana": {
-if (global.dana == false) return m.reply('Payment Dana Tidak Tersedia')
-let teks = `
-*Nomor Dana :*
-${global.dana}
-*A/N :* ${an.dana}
 
-*Note :*
-Demi Keamanan Bersama, Buyyer Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Yang Tidak Di Inginkan!
-`
-await zassbtz.sendText(m.chat, teks, qkuro)
-}
-break
-case "ovo": {
-if (global.ovo == false) return m.reply('Payment Ovo Tidak Tersedia')
-let teks = `
-*Nomor Ovo :*
-${global.ovo}
-*A/N :* ${an.ovo}
 
-*Note :*
-Demi Keamanan Bersama, Buyyer Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Yang Tidak Di Inginkan!
-`
-await zassbtz.sendText(m.chat, teks, qkuro)
-}
-break
-case "gopay": {
-if (global.gopay == false) return m.reply('Payment Gopay Tidak Tersedia')
-let teks = `
-*Nomor Gopay :*
-${global.gopay}
-*A/N :* ${an.gopay}
-
-*Note :*
-Demi Keamanan Bersama, Buyyer Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Yang Tidak Di Inginkan!
-`
-await zassbtz.sendText(m.chat, teks, qkuro)
-}
-break
 case "qris": {
-  m.reply('Memproses Mengambil QRIS, Tunggu Sebentar . . .')
-
   let teks = `
 *Silahkan Scan QRIS ini*
 *Note :*
@@ -2974,27 +3117,52 @@ Demi Keamanan Bersama, Wajib Mengirim Bukti Pembayaran Agar Tidak Terjadi Hal Ya
       break
 
 case "checkreply": {
-  const { getReplyTimeRemaining, getCurrentTimeWITA } = require("./lib/rentalHandler");
-  
-  const timeInfo = getReplyTimeRemaining();
+  const { getReplyTimeRemaining, getCurrentTimeWITA, isBotReplyTime } = require("./lib/rentalHandler");
   const currentTime = getCurrentTimeWITA();
+  const timeInfo = getReplyTimeRemaining();
+  const isScheduledOn = isBotReplyTime();
   
   let statusText = '';
-  if (timeInfo.isActive) {
-    statusText = `*REPLY OTOMATIS AKTIF*
+  if (penting.manualStatus === 'OFF') {
+    statusText = `*REPLY OTOMATIS OFFLINE*\n\n` +
+                 `*Status:* OFFLINE (Manual) 🔴\n` +
+                 `*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA\n` +
+                 `Fitur ini dinonaktifkan sementara dan akan aktif kembali pada jam 10:00 Wita.\n` +
+                 `*Sisa waktu tunggu:* ${timeInfo.hoursRemaining}`;
+  } else if (penting.manualStatus === 'ON' && !isScheduledOn) {
+    const expiry = moment(penting.manualExpiry).tz('Asia/Makassar');
+    const duration = moment.duration(expiry.diff(currentTime));
+    
+    let remainingStr = '';
+    if (duration.asSeconds() <= 0) {
+      remainingStr = "Masa Berlaku Habis";
+    } else {
+      if (duration.hours() > 0) remainingStr += `${duration.hours()} jam `;
+      if (duration.minutes() > 0) remainingStr += `${duration.minutes()} menit`;
+      if (duration.seconds() > 0 && duration.hours() === 0) remainingStr += `${duration.seconds()} detik`;
+    }
 
-*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA
-*Waktu Tersisa:* ${timeInfo.hoursRemaining}
-*Berakhir:* ${timeInfo.endTime} WITA
-*Status:* ✔`;
+    statusText = `*REPLY OTOMATIS AKTIF*\n\n` +
+                 `*Status:* ONLINE (Luar Jadwal) 🟢\n` +
+                 `*Waktu Aktif:* 3 Jam\n` +
+                 `*Sisa Waktu:* ${remainingStr.trim()}\n` +
+                 `*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA\n` +
+                 `*Keterangan:* Bot tetap membalas karena status diaktifkan secara manual.\n` +
+                 ``;
+  } else if (isScheduledOn && penting.manualStatus !== 'OFF') {
+    statusText = `*REPLY OTOMATIS AKTIF*\n\n` +
+                 `*Status:*ONLINE (Sesuai Jadwal) 🟢\n` +
+                 `*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA\n` +
+                 `*Waktu Tersisa:* ${timeInfo.hoursRemaining}\n` +
+                 `*Berakhir:* ${timeInfo.endTime} WITA\n` +
+                 ``;
   } else {
-    statusText = `*REPLY NONAKTIF*
-
-*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA
-*Waktu Tersisa:* ${timeInfo.hoursRemaining}
-*Dibuka:* ${timeInfo.nextStartTime} WITA
-*Status:* ❌
-`;
+    statusText = `*REPLY NONAKTIF*\n\n` +
+                 `*Status:*OFFLINE (Sesuai Jadwal) 🔴\n` +
+                 `*Waktu Sekarang:* ${currentTime.format('HH:mm:ss')} WITA\n` +
+                 `*Waktu Tersisa:* ${timeInfo.hoursRemaining}\n` +
+                 `*Dibuka:* ${timeInfo.nextStartTime} WITA\n` +
+                 ``;
   }
   
   m.reply(statusText);
